@@ -20,11 +20,15 @@ jobs:
 
       - name: Install Liquibase
         run: |
-          wget -O- https://repo.liquibase.com/liquibase.asc | gpg --dearmor > liquibase-keyring.gpg
-          cat liquibase-keyring.gpg | sudo tee /usr/share/keyrings/liquibase-keyring.gpg > /dev/null
-          echo 'deb [signed-by=/usr/share/keyrings/liquibase-keyring.gpg] https://repo.liquibase.com stability main' | sudo tee /etc/apt/sources.list.d/liquibase.list
-          sudo apt-get update
-          sudo apt-get install liquibase
+          wget https://github.com/liquibase/liquibase/releases/download/v4.25.1/liquibase-4.25.1.tar.gz
+          sudo mkdir -p /opt/liquibase
+          sudo tar -xzf liquibase-4.25.1.tar.gz -C /opt/liquibase
+          sudo ln -s /opt/liquibase/liquibase /usr/local/bin/liquibase
+
+      - name: Download Databricks JDBC Driver
+        run: |
+          wget -q https://repo1.maven.org/maven2/com/databricks/databricks-jdbc/2.6.38/databricks-jdbc-2.6.38.jar
+          sudo cp databricks-jdbc-2.6.38.jar /opt/liquibase/lib/
 
       - name: Liquibase Update
         env:
@@ -32,8 +36,9 @@ jobs:
           DATABRICKS_HTTP_PATH: ${{ secrets.DATABRICKS_HTTP_PATH }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
         run: |
+          CLEAN_HOST=$(echo "${DATABRICKS_HOST}" | sed -e 's/^https:\/\///' -e 's/\/$//')
           liquibase --changelog-file=changelog/db.changelog-master.yaml \
-                    --url="jdbc:databricks://${DATABRICKS_HOST#https://}:443/default;transportMode=http;ssl=1;AuthMech=3;httpPath=${DATABRICKS_HTTP_PATH}" \
+                    --url="jdbc:databricks://${CLEAN_HOST}:443/default;transportMode=http;ssl=1;AuthMech=3;httpPath=${DATABRICKS_HTTP_PATH}" \
                     --username="token" \
                     --password="${DATABRICKS_TOKEN}" \
                     update
